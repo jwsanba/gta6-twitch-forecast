@@ -75,12 +75,16 @@ POOL = 0.35
 # keeps the 5% and 95% quantiles honest on a day that breaks the pattern.
 FLOOR_K = 0.7
 # Calibration, fitted by leave-one-out validation over the kit's
-# comparables: the raw ensemble median overstates how far a release day
-# travels from its first hour, and its spread runs slightly wide once
-# the floor is in. ALPHA shrinks the median log-ratio toward 0 (the
-# persistence forecast) and BETA scales the remaining spread around it.
-ALPHA = 0.9
-BETA = 0.88
+# comparables: with the scale-first weights above, the raw ensemble
+# median no longer overstates how far a release day travels from its
+# first hour (the old 0.9 shrink was compensating for the loose scale
+# kernel, which let small launches with steep curves pull the median
+# up), so ALPHA is 1.0 — no shrink. The spread still runs slightly
+# wide once the floor is in, so BETA keeps a mild 0.84 scale on the
+# distance from the median. The calibration surface around these
+# values is flat in validation, which is what makes them safe to fix.
+ALPHA = 1.0
+BETA = 0.84
 
 
 def parse_ts(ts: str) -> float:
