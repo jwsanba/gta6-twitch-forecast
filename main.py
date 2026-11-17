@@ -54,6 +54,17 @@ SIGMA_SHAPE = 1.1
 SIGMA_SCALE = 2.5
 MIN_WEIGHT = 0.01
 MIN_COMMON = 6
+# Adjacent-hour pooling: hour h's quantile estimate also draws on the
+# log-ratios of hours h-1 and h+1 at this weight. A launch-day curve is
+# smooth, so neighbouring hours carry nearly the same distribution, and
+# pooling roughly doubles the effective sample behind each hour's tails.
+POOL = 0.35
+# Spread floor: neither side of an hour's band may sit closer to the
+# median than FLOOR_K times the house baseline's random-walk half-width
+# at that level (0.15 * sqrt(h - 1) in log space). The ensemble can be
+# overconfident where similar launches happened to agree; the floor
+# keeps the 5% and 95% quantiles honest on a day that breaks the pattern.
+FLOOR_K = 0.7
 
 
 def parse_ts(ts: str) -> float:
@@ -163,10 +174,22 @@ def ensemble_forecast(case: dict) -> dict[int, list[float]]:
         raise ValueError("no comparable launch matched the run-up window")
     out = {}
     for h in range(1, 24):
-        pairs = [(math.log(s[h] / s[0]), w) for s, w in items if h in s]
+        pairs = []
+        for s, w in items:
+            for hh, pw in ((h - 1, POOL), (h, 1.0), (h + 1, POOL)):
+                if 1 <= hh <= 23 and hh in s:
+                    pairs.append((math.log(s[hh] / s[0]), w * pw))
         if not pairs:
             raise ValueError(f"no comparable has hour {h + 1}")
-        out[h + 1] = [p1 * math.exp(weighted_quantile(pairs, tau)) for tau in LEVELS]
+        logs = [weighted_quantile(pairs, tau) for tau in LEVELS]
+        med = logs[2]
+        half = 0.15 * math.sqrt(h)  # the baseline's half-width unit at hour h + 1
+        for i, z in enumerate(Z):
+            if z < 0:
+                logs[i] = min(logs[i], med + FLOOR_K * z * half)
+            elif z > 0:
+                logs[i] = max(logs[i], med + FLOOR_K * z * half)
+        out[h + 1] = [p1 * math.exp(q) for q in logs]
     return out
 
 
