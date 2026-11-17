@@ -65,6 +65,13 @@ POOL = 0.35
 # overconfident where similar launches happened to agree; the floor
 # keeps the 5% and 95% quantiles honest on a day that breaks the pattern.
 FLOOR_K = 0.7
+# Calibration, fitted by leave-one-out validation over the kit's
+# comparables: the raw ensemble median overstates how far a release day
+# travels from its first hour, and its spread runs slightly wide once
+# the floor is in. ALPHA shrinks the median log-ratio toward 0 (the
+# persistence forecast) and BETA scales the remaining spread around it.
+ALPHA = 0.9
+BETA = 0.88
 
 
 def parse_ts(ts: str) -> float:
@@ -182,7 +189,9 @@ def ensemble_forecast(case: dict) -> dict[int, list[float]]:
         if not pairs:
             raise ValueError(f"no comparable has hour {h + 1}")
         logs = [weighted_quantile(pairs, tau) for tau in LEVELS]
-        med = logs[2]
+        raw_med = logs[2]
+        med = ALPHA * raw_med
+        logs = [med + (q - raw_med) * BETA for q in logs]
         half = 0.15 * math.sqrt(h)  # the baseline's half-width unit at hour h + 1
         for i, z in enumerate(Z):
             if z < 0:
