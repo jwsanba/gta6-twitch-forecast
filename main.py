@@ -9,8 +9,10 @@ same. So the program
      (hour 0 is the release day's first hour, negative hours before it);
   2. weights each comparable by how closely its observed pre-checkpoint
      trajectory (relative hours -13..0, each hour in units of its own
-     hour-1 print, in log space) matches the case's own trajectory, with
-     a light penalty for a very different hour-1 scale;
+     hour-1 print, in log space) matches the case's own trajectory, and
+     by how close its hour-1 scale is to the case's own — leave-one-out
+     validation says the scale match is the stronger signal of the two:
+     launches of a similar size follow similar release-day shapes;
   3. forecasts each hour 2..24 as the weighted empirical quantiles of the
      comparables' log-ratios ln(viewers_h / viewers_1) at that hour,
      scaled by the case's own hour-1 print.
@@ -48,11 +50,18 @@ Z = [-1.645, -0.674, 0, 0.674, 1.645]
 WINDOW = list(range(-13, 1))
 # Shape-match widths: how far (in log RMS over the window, and in log
 # hour-1 scale) a comparable may sit from the case before its weight
-# fades. Every comparable also keeps a small floor weight so the tails
-# of the ensemble never rest on one or two launches.
-SIGMA_SHAPE = 1.1
-SIGMA_SCALE = 2.5
-MIN_WEIGHT = 0.01
+# fades. The scale width is the tight one (1.1 in log space): a launch
+# twice or half the case's size still counts, one ten times off barely
+# does. The shape width is loose (2.2) — over a 14-hour window of noisy
+# hourly prints the trajectory separates regimes (rolling midnight vs
+# fixed-time unlock) rather than ranking near neighbours, and the
+# scale term does the fine ranking. No floor weight: the Gaussian
+# kernel never returns exactly 0 for a comparable that shares the
+# window, and the quantile routine falls back to uniform weights if
+# every weight underflows, so the ensemble cannot go empty.
+SIGMA_SHAPE = 2.2
+SIGMA_SCALE = 1.1
+MIN_WEIGHT = 0.0
 MIN_COMMON = 6
 # Adjacent-hour pooling: hour h's quantile estimate also draws on the
 # log-ratios of hours h-1 and h+1 at this weight. A launch-day curve is
